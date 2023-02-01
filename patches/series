@@ -1,4 +1,5 @@
 # netopeer2 patches
+openroadm/openroadm.patch
 sysrepo/fix_build.patch
 netopeer2/cli_hostkey-check.patch
 
