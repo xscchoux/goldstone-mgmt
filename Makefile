@@ -142,7 +142,7 @@ unittest-openconfig:
 
 unittest-openroadm:
 	$(MAKE) clean-sysrepo
-	scripts/gs-yang.py --install xlate-or --search-dirs yang sm/openroadm
+	scripts/gs-yang.py --install xlate-or south-onlp south-tai south-gearbox south-system --search-dirs yang /var/lib/goldstone/yang/or
 	cd src/xlate/openroadm && PYTHONPATH=../../lib python -m unittest -v -f $(TEST_CASE)
 
 unittest-telemetry:

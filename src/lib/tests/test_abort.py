@@ -35,6 +35,7 @@ class MockInterfaceServer(ServerBase):
                         "admin-status": InterfaceAdminStatusHandler,
                         "loopback-mode": NoOp,
                         "prbs-mode": NoOp,
+                        "interface-type":NoOp,
                     },
                     "ethernet": NoOp,
                     "switched-vlan": NoOp,
@@ -71,7 +72,6 @@ class TestAbort(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         logging.basicConfig(level=logging.DEBUG)
         self.conn = Connector()
-
         self.conn.delete_all("goldstone-interfaces")
         self.conn.delete_all("goldstone-transponder")
         self.conn.apply()
