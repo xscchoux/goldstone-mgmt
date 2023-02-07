@@ -1044,12 +1044,12 @@ class EthFecHandler(IfChangeHandler):
 
 class DeviceServer(ServerBase):
     def __init__(self, conn, operational_modes, reconciliation_interval=10):
-        super().__init__(conn, "org-openroadm-device", reconciliation_interval)
-        # self.conn = conn
-        # self.sess = self.conn.start_session()
-        # self.operational_modes = operational_modes
-        # self.reconciliation_interval = reconciliation_interval
-        # self.reconcile_task = None
+        super().__init__(conn, "org-openroadm-device")
+        self.conn = conn
+        self.sess = self.conn.start_session()
+        self.operational_modes = operational_modes
+        self.reconciliation_interval = reconciliation_interval
+        self.reconcile_task = None
         self.handlers = {
             "org-openroadm-device": {
                 "info": {
@@ -1177,48 +1177,42 @@ class DeviceServer(ServerBase):
                 },
             }
         }
-        self.operational_modes = operational_modes
 
         # check installed OpenROADM version
-        # ctx = self.sess.get_ly_ctx()
-        # module = ctx.get_module("org-openroadm-device")
-        # revisions = module.revisions()
-        # assert next(revisions).description() == f"Version {OPENROADM_VERSION}"
+        ctx = self.sess.get_ly_ctx()
+        module = ctx.get_module("org-openroadm-device")
+        revisions = module.revisions()
+        assert next(revisions).description() == f"Version {OPENROADM_VERSION}"
 
     async def reconcile_loop(self):
-        pass
-        # while True:
-        #     await asyncio.sleep(self.reconciliation_interval)
+        while True:
+            await asyncio.sleep(self.reconciliation_interval)
 
-    # async def start(self):
-    #     tasks = await super().start()
-    #     if self.reconciliation_interval > 0:
-    #         self.reconcile_task = asyncio.create_task(self.reconcile_loop())
-    #         tasks.append(self.reconcile_task)
+    async def start(self):
+        tasks = await super().start()
+        if self.reconciliation_interval > 0:
+            self.reconcile_task = asyncio.create_task(self.reconcile_loop())
+            tasks.append(self.reconcile_task)
 
-    #     return tasks
+        return tasks
 
-    # async def stop(self):
-    #     if self.reconcile_task:
-    #         self.reconcile_task.cancel()
-    #         while True:
-    #             if self.reconcile_task.done():
-    #                 break
-    #             await asyncio.sleep(0.1)
-    #     self.sess.stop()
-
-    # def pre(self, user):
-    #     sess = self.conn.start_session()
-    #     sess.switch_datastore("running")
-    #     user["sess"] = sess
+    async def stop(self):
+        if self.reconcile_task:
+            self.reconcile_task.cancel()
+            while True:
+                if self.reconcile_task.done():
+                    break
+                await asyncio.sleep(0.1)
+        self.sess.stop()
 
     def pre(self, user):
-        super().pre(user)
-        user["operational-modes"] = self.operational_modes
+        sess = self.conn.start_session()
+        sess.switch_datastore("running")
+        user["sess"] = sess
 
-    # async def post(self, user):
-    #     user["sess"].apply_changes()
-    #     user["sess"].stop()
+    async def post(self, user):
+        user["sess"].apply_changes()
+        user["sess"].stop()
 
     def _oper_info(self, data):
         """Fetches and maps operational data for info container.
