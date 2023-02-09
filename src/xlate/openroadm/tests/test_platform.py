@@ -273,7 +273,8 @@ class TestPlatformServer(XlateTestCase):
             # test provisioning of SYS shelf
             self.conn.set(
                 f"/org-openroadm-device:org-openroadm-device/shelves[shelf-name='{sys_comp_name}']",
-                sys_comp_name,
+                # sys_comp_name,
+                "SYS"
             )
             self.conn.set(
                 f"/org-openroadm-device:org-openroadm-device/shelves[shelf-name='{sys_comp_name}']/shelf-type",

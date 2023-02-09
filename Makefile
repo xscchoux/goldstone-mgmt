@@ -150,6 +150,16 @@ unittest-openroadm2:
 	scripts/gs-yang.py --install xlate-or south-onlp south-tai south-gearbox south-system --search-dirs yang /var/lib/goldstone/yang/or
 	cd src/xlate/openroadm && PYTHONPATH=../../lib python -m unittest tests/test_platform.py
 
+unittest-openroadm3:
+	$(MAKE) clean-sysrepo
+	scripts/gs-yang.py --install xlate-or south-onlp south-tai south-gearbox south-system --search-dirs yang /var/lib/goldstone/yang/or
+	cd src/xlate/openroadm && PYTHONPATH=../../lib python -m unittest tests/test_xponder.py
+
+unittest-openroadm4:
+	$(MAKE) clean-sysrepo
+	scripts/gs-yang.py --install xlate-or south-onlp south-tai south-gearbox south-system --search-dirs yang /var/lib/goldstone/yang/or
+	cd src/xlate/openroadm && PYTHONPATH=../../lib python -m unittest tests/test_pm.py
+
 unittest-telemetry:
 	$(MAKE) clean-sysrepo
 	scripts/gs-yang.py --install system-telemetry south-gearbox --search-dirs yang sm/openconfig

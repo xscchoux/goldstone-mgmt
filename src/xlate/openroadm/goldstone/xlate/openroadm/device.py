@@ -4,6 +4,11 @@ import logging
 import libyang
 import sysrepo
 from goldstone.lib.core import *
+from goldstone.lib.errors import NotFoundError
+from .lib import(
+    OpenROADMObjectFactory,
+    OpenROADMServer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +82,6 @@ class ShelfNameHandler(ShelfChangeHandler):
                 GS_PLATFORM_COMPONENTS_BY_TYPE.format("SYS")
             )
             valid_names = [comp.get("name") for comp in sys_components]
-
             if name not in valid_names:
                 raise sysrepo.errors.SysrepoInvalArgError("invalid shelf-name")
 
@@ -198,20 +202,20 @@ class TxPwrHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"TxPwrHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
-
+        sess = user["sess"]["running"]
+        
         # Note that any set operations performed from here are only allowed to use goldstone derived information
         if self.type in ["created", "modified"]:
             # There are other required leafs that have to be created
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name),
                 self.gsoper_name,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 f"{self.gsoper_niname}",
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
@@ -220,7 +224,7 @@ class TxPwrHandler(IfChangeHandler):
 
         else:
             # delete processing
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -228,9 +232,9 @@ class TxPwrHandler(IfChangeHandler):
 
     def revert(self, user):
         logger.warning(f"TxPwrHandler:revert: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_output_power != None:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
@@ -239,7 +243,7 @@ class TxPwrHandler(IfChangeHandler):
 
         else:
             # no output power was set originally, so cleanup output power leaf
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -281,7 +285,7 @@ class OpticalOperationalModeHandler(IfChangeHandler):
         logger.info(
             f"OpticalOperationalMode:apply: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         line_rate_xpath = GS_TRANSPONDER_NETIF_LINE_RATE.format(
             self.gsoper_name, self.gsoper_niname
         )
@@ -294,40 +298,40 @@ class OpticalOperationalModeHandler(IfChangeHandler):
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
 
             # set values from json-defined mode
-            sess.set_item(line_rate_xpath, self.mode.get("line-rate"))
-            sess.set_item(
+            sess.set(line_rate_xpath, self.mode.get("line-rate"))
+            sess.set(
                 mod_format_xpath,
                 self.mode.get("modulation-format"),
             )
-            sess.set_item(fec_type_xpath, self.mode.get("fec-type"))
+            sess.set(fec_type_xpath, self.mode.get("fec-type"))
         else:
-            sess.delete_item(line_rate_xpath)
-            sess.delete_item(mod_format_xpath)
-            sess.delete_item(fec_type_xpath)
+            sess.delete(line_rate_xpath)
+            sess.delete(mod_format_xpath)
+            sess.delete(fec_type_xpath)
 
     def revert(self, user):
         logger.warning(
             f"OpticalOperationalMode:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         for leaf in self.orig_values:
             if self.orig_values.get(leaf) != None:
-                sess.set_item(
+                sess.set(
                     GS_TRANSPONDER_NETIF.format(self.gsoper_name, self.gsoper_niname)
                     + "/config/{leaf}",
                     self.orig_values.get(leaf),
                 )
             else:
-                sess.delete_item(
+                sess.delete(
                     GS_TRANSPONDER_NETIF.format(self.gsoper_name, self.gsoper_niname)
                     + "/config/{leaf}",
                 )
@@ -382,27 +386,27 @@ class OtsiRateHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"OtsiRateHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
 
             # set line-rate
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_LINE_RATE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.new_rate,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_LINE_RATE.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -412,16 +416,16 @@ class OtsiRateHandler(IfChangeHandler):
         logger.warning(
             f"OtsiRateHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_linerate:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_LINE_RATE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.orig_linerate,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_LINE_RATE.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -488,27 +492,31 @@ class ModulationFormatHandler(IfChangeHandler):
         logger.info(
             f"ModulationFormatHandler:apply: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            print("set transponder_module_name = ", self.gsoper_name)
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            print("set transponder_netif_name = ", self.gsoper_niname)
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
-
+            print("set modulation-format = ", self.new_format)
             # set modulation-format
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.new_format,
             )
+            print("(((((((((((((((((((((((((((((((")
         else:
-            sess.delete_item(
+            print("delete=================================")
+            sess.delete(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -518,16 +526,16 @@ class ModulationFormatHandler(IfChangeHandler):
         logger.warning(
             f"ModulationFormatHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_modulationformat:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.orig_modulationformat,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -588,7 +596,7 @@ class FecHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"FecHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         module_xpath = (
             f"/goldstone-transponder:modules/module[name='{self.gsoper_name}']"
         )
@@ -596,23 +604,23 @@ class FecHandler(IfChangeHandler):
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
 
             # set fec-type
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_FEC_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.new_fec,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_FEC_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -620,16 +628,16 @@ class FecHandler(IfChangeHandler):
 
     def revert(self, user):
         logger.warning(f"FecHandler:revert: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_fec:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_FEC_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.orig_fec,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_FEC_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -666,27 +674,27 @@ class FrequencyHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"FrequencyHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
 
             # set frequency (convert from THz to Hz)
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_TX_LASER_FREQ.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 FrequencyHandler.translate(or_val=self.change.value),
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_TX_LASER_FREQ.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -696,16 +704,16 @@ class FrequencyHandler(IfChangeHandler):
         logger.warning(
             f"FrequencyHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_frequency:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_TX_LASER_FREQ.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.orig_frequency,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_TX_LASER_FREQ.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -779,18 +787,18 @@ class EthSpdHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"\n\nEthSpdHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
 
         if self.type in ["created", "modified"]:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gs_piu),
                 self.gs_piu,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_NAME.format(self.gs_piu, self.gsoper_hiname),
                 self.gsoper_hiname,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_SIGNAL_RATE.format(
                     self.gs_piu, self.gsoper_hiname
                 ),
@@ -798,7 +806,7 @@ class EthSpdHandler(IfChangeHandler):
             )
         else:
             # delete processing
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_HOSTIF_SIGNAL_RATE.format(
                     self.gs_piu, self.gsoper_hiname
                 )
@@ -808,9 +816,9 @@ class EthSpdHandler(IfChangeHandler):
         logger.warning(
             f"\n\nEthSpdHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_speed != None:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_SIGNAL_RATE.format(
                     self.gs_piu, self.gsoper_hiname
                 ),
@@ -818,7 +826,7 @@ class EthSpdHandler(IfChangeHandler):
             )
         else:
             # no eth speed was set originally, so cleanup the host interface leaf
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_HOSTIF_NAME.format(self.gs_piu, self.gsoper_hiname)
             )
 
@@ -880,28 +888,28 @@ class OtuMaintLoopbackTypeHandler(IfChangeHandler):
         logger.info(
             f"OtuMaintLoopbackTypeHandler:apply: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
 
             # set loopback-type
             if self.enabled:
-                sess.set_item(
+                sess.set(
                     GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                         self.gsoper_name, self.gsoper_niname
                     ),
                     self.new_type,
                 )
             else:
-                sess.set_item(
+                sess.set(
                     GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                         self.gsoper_name, self.gsoper_niname
                     ),
@@ -909,13 +917,13 @@ class OtuMaintLoopbackTypeHandler(IfChangeHandler):
                 )
         else:
             if self.enabled:
-                sess.delete_item(
+                sess.delete(
                     GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                         self.gsoper_name, self.gsoper_niname
                     )
                 )
             else:
-                sess.set_item(
+                sess.set(
                     GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                         self.gsoper_name, self.gsoper_niname
                     ),
@@ -926,16 +934,16 @@ class OtuMaintLoopbackTypeHandler(IfChangeHandler):
         logger.warning(
             f"OtuMaintLoopbackTypeHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_loopback_type:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
                 self.orig_loopback_type,
             )
         else:
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_LOOPBACK_TYPE.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
@@ -1005,23 +1013,23 @@ class EthFecHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"\n\nEthSpdHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.type in ["created", "modified"]:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gs_piu),
                 self.gs_piu,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_NAME.format(self.gs_piu, self.gsoper_hiname),
                 self.gsoper_hiname,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_FEC_TYPE.format(self.gs_piu, self.gsoper_hiname),
                 self.new_fec,
             )
         else:
             # delete processing
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_HOSTIF_FEC_TYPE.format(self.gs_piu, self.gsoper_hiname)
             )
 
@@ -1029,27 +1037,22 @@ class EthFecHandler(IfChangeHandler):
         logger.warning(
             f"\n\nEthSpdHandler:revert: type:{self.type}, change:{self.change}"
         )
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_fec != None:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_HOSTIF_FEC_TYPE.format(self.gs_piu, self.gsoper_hiname),
                 self.orig_fec,
             )
         else:
             # no eth fec was set originally, so cleanup the host interface leaf
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_HOSTIF_NAME.format(self.gs_piu, self.gsoper_hiname)
             )
 
 
-class DeviceServer(ServerBase):
+class DeviceServer(OpenROADMServer):
     def __init__(self, conn, operational_modes, reconciliation_interval=10):
         super().__init__(conn, "org-openroadm-device", reconciliation_interval)
-        # self.conn = conn
-        # self.sess = self.conn.start_session()
-        # self.operational_modes = operational_modes
-        # self.reconciliation_interval = reconciliation_interval
-        # self.reconcile_task = None
         self.handlers = {
             "org-openroadm-device": {
                 "info": {
@@ -1178,7 +1181,6 @@ class DeviceServer(ServerBase):
             }
         }
         self.operational_modes = operational_modes
-
         # check installed OpenROADM version
         # ctx = self.sess.get_ly_ctx()
         # module = ctx.get_module("org-openroadm-device")
@@ -1187,38 +1189,11 @@ class DeviceServer(ServerBase):
 
     async def reconcile_loop(self):
         pass
-        # while True:
-        #     await asyncio.sleep(self.reconciliation_interval)
-
-    # async def start(self):
-    #     tasks = await super().start()
-    #     if self.reconciliation_interval > 0:
-    #         self.reconcile_task = asyncio.create_task(self.reconcile_loop())
-    #         tasks.append(self.reconcile_task)
-
-    #     return tasks
-
-    # async def stop(self):
-    #     if self.reconcile_task:
-    #         self.reconcile_task.cancel()
-    #         while True:
-    #             if self.reconcile_task.done():
-    #                 break
-    #             await asyncio.sleep(0.1)
-    #     self.sess.stop()
-
-    # def pre(self, user):
-    #     sess = self.conn.start_session()
-    #     sess.switch_datastore("running")
-    #     user["sess"] = sess
 
     def pre(self, user):
         super().pre(user)
         user["operational-modes"] = self.operational_modes
 
-    # async def post(self, user):
-    #     user["sess"].apply_changes()
-    #     user["sess"].stop()
 
     def _oper_info(self, data):
         """Fetches and maps operational data for info container.
@@ -1278,10 +1253,8 @@ class DeviceServer(ServerBase):
 
     def _oper_circuit_packs(self, data):
         """Fetches and maps operational data for circuit-packs container.
-
         Args:
             data (Dict): operational data from goldstone-platform primitive model.
-
         Returns:
             A list representing the operational OpenROADM Device circuit-packs container.
         """
@@ -1348,7 +1321,7 @@ class DeviceServer(ServerBase):
         ]
         for piu_comp in piu_comps:
             piu_pack = {"circuit-pack-name": piu_comp.get("name")}
-            circuit_packs.append(piu_pack)
+            # circuit_packs.append(piu_pack)
             name = piu_comp.get("name")
             modules = self.get_operational_data(
                 f"/goldstone-transponder:modules/module[name='{name}']"
@@ -1398,7 +1371,9 @@ class DeviceServer(ServerBase):
                 oper_port["is-physical"] = True
                 oper_port["faceplate-label"] = "none"
                 oper_port["operational-state"] = "inService"
-
+        print("**********************************************")
+        print(circuit_packs)
+        print("**********************************************")
         return circuit_packs
 
     def _oper_interfaces(self):
@@ -1533,7 +1508,6 @@ class DeviceServer(ServerBase):
         logger.debug(f"oper_cb: {xpath}")
         xpath = "/goldstone-platform:components/component"
         data = self.get_operational_data(xpath, [])
-
         return {
             "org-openroadm-device": {
                 "info": self._oper_info(data),
