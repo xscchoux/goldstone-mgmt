@@ -57,19 +57,25 @@ class ShelfChangeHandler(ChangeHandler):
         super().__init__(server, change)
         xpath = change.xpath
         xpath = list(libyang.xpath_split(xpath))
+        print("**********************************")
+        print(xpath)
+        print("*********************************")
         assert xpath[0][0] == "org-openroadm-device"
         assert xpath[0][1] == "org-openroadm-device"
         assert xpath[1][1] == "shelves"
         assert xpath[1][2][0][0] == "shelf-name"
         self.xpath = xpath
         self.shelfname = xpath[1][2][0][1]
-
+# xpath: [('org-openroadm-device', 'org-openroadm-device', []), (None, 'shelves', [('shelf-name', 'test_shelf')]), (None, 'shelf-name', [])]
 
 class ShelfNameHandler(ShelfChangeHandler):
+    print("shelfnamehandler")
     async def validate(self, user):
+        # print("*****validate start*************")
         logger.info(
             f"ShelfNameHandler:validate: type:{self.type}, change:{self.change}"
         )
+        # print("***********validate end****************")
         name = self.shelfname
         if self.type in ["created", "modified"]:
             # Only allow for provisioning of 'SYS' shelf
@@ -77,7 +83,6 @@ class ShelfNameHandler(ShelfChangeHandler):
                 GS_PLATFORM_COMPONENTS_BY_TYPE.format("SYS")
             )
             valid_names = [comp.get("name") for comp in sys_components]
-
             if name not in valid_names:
                 raise sysrepo.errors.SysrepoInvalArgError("invalid shelf-name")
 
@@ -1178,7 +1183,6 @@ class DeviceServer(ServerBase):
             }
         }
         self.operational_modes = operational_modes
-
         # check installed OpenROADM version
         # ctx = self.sess.get_ly_ctx()
         # module = ctx.get_module("org-openroadm-device")
