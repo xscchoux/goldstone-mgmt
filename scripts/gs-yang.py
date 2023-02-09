@@ -66,6 +66,7 @@ MODELS = {
         "Common/org-openroadm-common-types",
         "Common/org-openroadm-otn-common-types",
         "Common/org-openroadm-pm",
+        "Common/org-openroadm-interfaces"
     ],
     "system-telemetry": [
         "goldstone-telemetry",

@@ -4,6 +4,11 @@ import logging
 import libyang
 import sysrepo
 from goldstone.lib.core import *
+from goldstone.lib.errors import NotFoundError
+from .lib import(
+    OpenROADMObjectFactory,
+    OpenROADMServer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +82,6 @@ class ShelfNameHandler(ShelfChangeHandler):
                 GS_PLATFORM_COMPONENTS_BY_TYPE.format("SYS")
             )
             valid_names = [comp.get("name") for comp in sys_components]
-
             if name not in valid_names:
                 raise sysrepo.errors.SysrepoInvalArgError("invalid shelf-name")
 
@@ -198,20 +202,20 @@ class TxPwrHandler(IfChangeHandler):
 
     def apply(self, user):
         logger.info(f"TxPwrHandler:apply: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
-
+        sess = user["sess"]["running"]
+        
         # Note that any set operations performed from here are only allowed to use goldstone derived information
         if self.type in ["created", "modified"]:
             # There are other required leafs that have to be created
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name),
                 self.gsoper_name,
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 f"{self.gsoper_niname}",
             )
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
@@ -220,7 +224,7 @@ class TxPwrHandler(IfChangeHandler):
 
         else:
             # delete processing
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -228,9 +232,9 @@ class TxPwrHandler(IfChangeHandler):
 
     def revert(self, user):
         logger.warning(f"TxPwrHandler:revert: type:{self.type}, change:{self.change}")
-        sess = user["sess"]
+        sess = user["sess"]["running"]
         if self.orig_output_power != None:
-            sess.set_item(
+            sess.set(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 ),
@@ -239,7 +243,7 @@ class TxPwrHandler(IfChangeHandler):
 
         else:
             # no output power was set originally, so cleanup output power leaf
-            sess.delete_item(
+            sess.delete(
                 GS_TRANSPONDER_NETIF_OUTPUT_POWER.format(
                     self.gsoper_name, self.gsoper_niname
                 )
@@ -1042,14 +1046,9 @@ class EthFecHandler(IfChangeHandler):
             )
 
 
-class DeviceServer(ServerBase):
+class DeviceServer(OpenROADMServer):
     def __init__(self, conn, operational_modes, reconciliation_interval=10):
         super().__init__(conn, "org-openroadm-device", reconciliation_interval)
-        # self.conn = conn
-        # self.sess = self.conn.start_session()
-        # self.operational_modes = operational_modes
-        # self.reconciliation_interval = reconciliation_interval
-        # self.reconcile_task = None
         self.handlers = {
             "org-openroadm-device": {
                 "info": {
@@ -1178,7 +1177,6 @@ class DeviceServer(ServerBase):
             }
         }
         self.operational_modes = operational_modes
-
         # check installed OpenROADM version
         # ctx = self.sess.get_ly_ctx()
         # module = ctx.get_module("org-openroadm-device")
@@ -1187,38 +1185,11 @@ class DeviceServer(ServerBase):
 
     async def reconcile_loop(self):
         pass
-        # while True:
-        #     await asyncio.sleep(self.reconciliation_interval)
-
-    # async def start(self):
-    #     tasks = await super().start()
-    #     if self.reconciliation_interval > 0:
-    #         self.reconcile_task = asyncio.create_task(self.reconcile_loop())
-    #         tasks.append(self.reconcile_task)
-
-    #     return tasks
-
-    # async def stop(self):
-    #     if self.reconcile_task:
-    #         self.reconcile_task.cancel()
-    #         while True:
-    #             if self.reconcile_task.done():
-    #                 break
-    #             await asyncio.sleep(0.1)
-    #     self.sess.stop()
-
-    # def pre(self, user):
-    #     sess = self.conn.start_session()
-    #     sess.switch_datastore("running")
-    #     user["sess"] = sess
 
     def pre(self, user):
         super().pre(user)
         user["operational-modes"] = self.operational_modes
 
-    # async def post(self, user):
-    #     user["sess"].apply_changes()
-    #     user["sess"].stop()
 
     def _oper_info(self, data):
         """Fetches and maps operational data for info container.
@@ -1529,11 +1500,10 @@ class DeviceServer(ServerBase):
                 optical_operational_mode_profile.append(bookend_profile)
         return optical_operational_mode_profile
 
-    def oper_cb(self, xpath, priv):
+    async def oper_cb(self, xpath, priv):
         logger.debug(f"oper_cb: {xpath}")
         xpath = "/goldstone-platform:components/component"
         data = self.get_operational_data(xpath, [])
-
         return {
             "org-openroadm-device": {
                 "info": self._oper_info(data),
