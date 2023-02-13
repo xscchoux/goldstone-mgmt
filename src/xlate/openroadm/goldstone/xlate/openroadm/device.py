@@ -153,11 +153,9 @@ class IfChangeHandler(ChangeHandler):
     async def validate(self, user):
         logger.info(f"IfChangeHandler:validate: type:{self.type}, change:{self.change}")
         cache = self.setup_cache(user)
-
         # find OpenROADM supporting circuit-pack
         xpath = f"/org-openroadm-device:org-openroadm-device/interface[name='{self.ifname}']/supporting-circuit-pack-name"
         self.or_cpname = libyang.xpath_get(cache, xpath)
-
         if not self.or_cpname and self.type == "deleted":
             self.or_cpname = self.server.get_running_data(xpath)
 
@@ -167,6 +165,7 @@ class IfChangeHandler(ChangeHandler):
         module_data = self.server.get_operational_data(
             GS_TRANSPONDER_MODULE.format(self.or_cpname)
         )
+
         if module_data == None:
             raise sysrepo.errors.SysrepoInvalArgError("missing goldstone module")
 
@@ -346,7 +345,6 @@ class OtsiRateHandler(IfChangeHandler):
         OTSIRATE_PREFIX + "R400G-otsi": "400g",
     }
     GS_TO_OR = dict((v, k) for k, v in OR_TO_GS.items() if v != "unknown")
-
     def translate(or_val=None, gs_val=None):
         """Translate between OpenROADM otsi-rate and Goldstone line-rate values.
 
@@ -367,7 +365,7 @@ class OtsiRateHandler(IfChangeHandler):
         )
 
     async def validate(self, user):
-        logger.info(f"OtsiRateHandler:validate: type:{self.type}, change:{self.change}")
+        # logger.info(f"OtsiRateHandler:validate: type:{self.type}, change:{self.change}")
         await super().validate(user)
         await super().validate_modules(user)
 
@@ -496,16 +494,14 @@ class ModulationFormatHandler(IfChangeHandler):
 
         if self.type in ["created", "modified"]:
             # other required leaves
-            print("set transponder_module_name = ", self.gsoper_name)
             sess.set(
                 GS_TRANSPONDER_MODULE_NAME.format(self.gsoper_name), self.gsoper_name
             )
-            print("set transponder_netif_name = ", self.gsoper_niname)
             sess.set(
                 GS_TRANSPONDER_NETIF_NAME.format(self.gsoper_name, self.gsoper_niname),
                 self.gsoper_niname,
             )
-            print("set modulation-format = ", self.new_format)
+
             # set modulation-format
             sess.set(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
@@ -513,9 +509,7 @@ class ModulationFormatHandler(IfChangeHandler):
                 ),
                 self.new_format,
             )
-            print("(((((((((((((((((((((((((((((((")
         else:
-            print("delete=================================")
             sess.delete(
                 GS_TRANSPONDER_NETIF_MODULATION_FORMAT.format(
                     self.gsoper_name, self.gsoper_niname

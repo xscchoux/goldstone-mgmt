@@ -6,48 +6,53 @@ import struct
 import libyang
 import sysrepo
 from goldstone.lib.core import *
-
+from .lib import(
+    OpenROADMObjectFactory,
+    OpenROADMServer,
+)
 logger = logging.getLogger(__name__)
 
 
-class PMServer(ServerBase):
+class PMServer(OpenROADMServer):
     def __init__(self, conn, reconciliation_interval=10):
+        super().__init__(conn, "org-openroadm-pm", reconciliation_interval)
         logger.debug("PMServer:__init__")
-        super().__init__(conn, "org-openroadm-pm")
-        self.conn = conn
-        self.sess = self.conn.start_session()
-        self.reconciliation_interval = reconciliation_interval
-        self.reconcile_task = None
+        # super().__init__(conn, "org-openroadm-pm")
+        # self.conn = conn
+        # self.sess = self.conn.start_session()
+        # self.reconciliation_interval = reconciliation_interval
+        # self.reconcile_task = None
 
     async def reconcile_loop(self):
-        while True:
-            await asyncio.sleep(self.reconciliation_interval)
+        pass
+        # while True:
+        #     await asyncio.sleep(self.reconciliation_interval)
 
-    async def start(self):
-        tasks = await super().start()
-        if self.reconciliation_interval > 0:
-            self.reconcile_task = asyncio.create_task(self.reconcile_loop())
-            tasks.append(self.reconcile_task)
+    # async def start(self):
+    #     tasks = await super().start()
+    #     if self.reconciliation_interval > 0:
+    #         self.reconcile_task = asyncio.create_task(self.reconcile_loop())
+    #         tasks.append(self.reconcile_task)
 
-        return tasks
+    #     return tasks
 
-    async def stop(self):
-        if self.reconcile_task:
-            self.reconcile_task.cancel()
-            while True:
-                if self.reconcile_task.done():
-                    break
-                await asyncio.sleep(0.1)
-        self.sess.stop()
+    # async def stop(self):
+    #     if self.reconcile_task:
+    #         self.reconcile_task.cancel()
+    #         while True:
+    #             if self.reconcile_task.done():
+    #                 break
+    #             await asyncio.sleep(0.1)
+    #     self.sess.stop()
 
-    def pre(self, user):
-        sess = self.conn.start_session()
-        sess.switch_datastore("running")
-        user["sess"] = sess
+    # def pre(self, user):
+    #     sess = self.conn.start_session()
+    #     sess.switch_datastore("running")
+    #     user["sess"] = sess
 
-    async def post(self, user):
-        user["sess"].apply_changes()
-        user["sess"].stop()
+    # async def post(self, user):
+    #     user["sess"].apply_changes()
+    #     user["sess"].stop()
 
     def _oper_current_pm_list(self, transponder_data, device_data):
         """Fetches and maps operational data for current-pm-list container.
@@ -90,7 +95,7 @@ class PMServer(ServerBase):
                 device_data,
                 f"/org-openroadm-device/interface[name='{otsi_name}']/supporting-port",
             )
-            return f"/org-openroadm-device:org-openroadm-device/circuit-packs[name='{cp_name}']/ports[port-name='{port_name}']"
+            return f"/org-openroadm-device:org-openroadm-device/circuit-packs[circuit-pack-name='{cp_name}']/ports[port-name='{port_name}']"
 
         current_pm_list = []
 
@@ -192,7 +197,9 @@ class PMServer(ServerBase):
         device_data = self.get_running_data(
             "/org-openroadm-device:org-openroadm-device", strip=False
         )
-
+        print("************callback**************")
+        print(self._oper_current_pm_list(transponder_data, device_data))
+        print("**********************************")
         return {
             "current-pm-list": self._oper_current_pm_list(transponder_data, device_data)
         }
